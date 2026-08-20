@@ -19,24 +19,18 @@ class Todo { // ★変更 Todo（1件分のやること）の設計図です
     private boolean done; // ★変更 終わったかを保存します
     private String deadline; // 締切日を「年-月-日」の形で保存します
     private String memo; // 細かいメモを保存します
-    private String tags; // 選択されたタグをカンマ区切りで保存します
     private long updatedAt; // 最後に状態を更新した時刻を保存します
 
     public Todo(int id, String title, boolean done) { // ★変更 Todoを1件作るときに値を受け取ります
-        this(id, title, done, "", "", "", System.currentTimeMillis()); // 締切日・メモ・タグなし、現在時刻でTodoを作ります
+        this(id, title, done, "", "", System.currentTimeMillis()); // 締切日・メモなし、現在時刻でTodoを作ります
     } // 従来の作り方を保つコンストラクターの終わりです
 
     public Todo(int id, String title, boolean done, String deadline, String memo, long updatedAt) { // 保存済みの全項目からTodoを作ります
-        this(id, title, done, deadline, memo, "", updatedAt); // 旧形式はタグなしとして読み込みます
-    }
-
-    public Todo(int id, String title, boolean done, String deadline, String memo, String tags, long updatedAt) { // タグを含む全項目からTodoを作ります
         this.id = id; // ★変更 受け取った番号を保存します
         this.title = title; // ★変更 受け取ったやることを保存します
         this.done = done; // ★変更 受け取った終了状態を保存します
         this.deadline = deadline; // 受け取った締切日を保存します
         this.memo = memo; // 受け取ったメモを保存します
-        this.tags = tags; // 受け取ったタグを保存します
         this.updatedAt = updatedAt; // 受け取った更新時刻を保存します
     } // ★変更 Todoを作る処理の終わりです
 
@@ -65,24 +59,10 @@ class Todo { // ★変更 Todo（1件分のやること）の設計図です
         return memo; // メモを返します
     } // getMemoの終わりです
 
-    public String getTags() { // タグを読み出すメソッドです
-        return tags; // カンマ区切りのタグを返します
-    }
-
-    public boolean hasTag(String tag) { // 指定したタグが設定されているかを調べます
-        for (String savedTag : tags.split(",")) {
-            if (savedTag.equals(tag)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void edit(String title, String deadline, String memo, String tags) { // Todoの入力項目をまとめて編集します
+    public void edit(String title, String deadline, String memo) { // Todoの入力項目をまとめて編集します
         this.title = title; // タイトルを新しい値へ変更します
         this.deadline = deadline; // 締切日を新しい値へ変更します
         this.memo = memo; // メモを新しい値へ変更します（空文字なら削除です）
-        this.tags = tags; // 選択されたタグへ変更します（未選択なら空文字です）
         this.updatedAt = System.currentTimeMillis(); // 編集した時刻を更新します
     } // editの終わりです
 
@@ -94,8 +74,6 @@ class Todo { // ★変更 Todo（1件分のやること）の設計図です
 public class App { // Appという名前のプログラムを定義します
     static List<Todo> todos = new ArrayList<>(); // ★変更 Todoを貯めるList（順番に保存する箱）です
     static int nextId = 1; // ★変更 次に使う1からの番号です
-    static final String[] TAG_VALUES = { "work", "private", "shopping", "study" }; // 保存に使うタグの値です
-    static final String[] TAG_LABELS = { "仕事", "個人", "買い物", "学習" }; // 画面に表示するタグ名です
 
     static void save() throws IOException { // ★追加 現在のTodo全件をtodos.csvへ保存します
         List<String> lines = new ArrayList<>(); // ★追加 CSVへ書く行を入れるListを用意します
@@ -104,10 +82,8 @@ public class App { // Appという名前のプログラムを定義します
                     todo.getTitle().getBytes(StandardCharsets.UTF_8)); // 日本語をUTF-8で変換します
             String encodedMemo = Base64.getUrlEncoder().withoutPadding().encodeToString( // メモを改行やカンマに影響されない形へ変換します
                     todo.getMemo().getBytes(StandardCharsets.UTF_8)); // 日本語をUTF-8で変換します
-            String encodedTags = Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    todo.getTags().getBytes(StandardCharsets.UTF_8)); // タグも安全な形へ変換します
-            lines.add("v4," + todo.getId() + "," + (todo.isDone() ? "1" : "0") + "," // タグ対応形式の識別子、id、完了状態を並べます
-                    + todo.getUpdatedAt() + "," + todo.getDeadline() + "," + encodedTitle + "," + encodedMemo + "," + encodedTags); // 全項目を1行にします
+            lines.add("v3," + todo.getId() + "," + (todo.isDone() ? "1" : "0") + "," // 新形式の識別子、id、完了状態を並べます
+                    + todo.getUpdatedAt() + "," + todo.getDeadline() + "," + encodedTitle + "," + encodedMemo); // 更新時刻、締切日、タイトル、メモを1行にします
         } // ★追加 すべてのTodoをCSVの行にする処理を終えます
         Files.write(Path.of("todos.csv"), lines, StandardCharsets.UTF_8); // ★追加
         // 全行をUTF-8でtodos.csvへ書き出します
@@ -124,19 +100,7 @@ public class App { // Appという名前のプログラムを定義します
         for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) { // ★追加 UTF-8で各行を読み込みます
             try { // 壊れた行があってもほかのTodoを読み込めるようにします
                 int id; // 読み込んだidを入れる箱を用意します
-                if (line.startsWith("v4,")) { // タグを含む最新形式かを調べます
-                    String[] values = line.split(",", -1);
-                    if (values.length != 8) {
-                        continue;
-                    }
-                    id = Integer.parseInt(values[1]);
-                    boolean done = values[2].equals("1");
-                    long updatedAt = Long.parseLong(values[3]);
-                    String title = new String(Base64.getUrlDecoder().decode(values[5]), StandardCharsets.UTF_8);
-                    String memo = new String(Base64.getUrlDecoder().decode(values[6]), StandardCharsets.UTF_8);
-                    String tags = new String(Base64.getUrlDecoder().decode(values[7]), StandardCharsets.UTF_8);
-                    todos.add(new Todo(id, title, done, values[4], memo, tags, updatedAt));
-                } else if (line.startsWith("v3,")) { // メモを含む旧形式かを調べます
+                if (line.startsWith("v3,")) { // メモを含む最新形式かを調べます
                     String[] values = line.split(",", -1); // 空のメモも残して7項目に分けます
                     if (values.length != 7) { // 必要な項目がそろっているかを調べます
                         continue; // 項目が不足した行は読み飛ばします
@@ -187,7 +151,6 @@ public class App { // Appという名前のプログラムを定義します
             json.append(todo.isDone()); // ★追加 完了状態をtrueまたはfalseで追加します
             json.append(",\"deadline\":\"").append(escapeJson(todo.getDeadline())).append("\""); // 締切日を追加します
             json.append(",\"memo\":\"").append(escapeJson(todo.getMemo())).append("\""); // メモを追加します
-            json.append(",\"tags\":\"").append(escapeJson(todo.getTags())).append("\""); // タグを追加します
             json.append("}"); // ★追加 Todoオブジェクトを閉じます
         } // ★追加 全Todoの変換を終えます
         json.append("]"); // ★追加 JSON配列を閉じます
@@ -269,35 +232,13 @@ public class App { // Appという名前のプログラムを定義します
         } // 日付確認を終えます
     } // 締切日の整形を終えます
 
-    static boolean isValidTag(String tag) { // 絞り込みに使えるタグかを確認します
-        for (String value : TAG_VALUES) {
-            if (value.equals(tag)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static String selectedTags(String formData) { // 編集フォームで選ばれた複数タグをまとめます
-        StringBuilder selected = new StringBuilder();
-        for (String value : TAG_VALUES) {
-            if (getParameter(formData, "tag_" + value).equals(value)) {
-                if (selected.length() > 0) {
-                    selected.append(",");
-                }
-                selected.append(value);
-            }
-        }
-        return selected.toString();
-    }
-
-    static String renderCalendar(YearMonth month, String sort, String selectedTag) { // 指定した月の締切カレンダーを作ります
+    static String renderCalendar(YearMonth month, String sort) { // 指定した月の締切カレンダーを作ります
         StringBuilder html = new StringBuilder(); // カレンダーのHTMLを組み立てる箱を用意します
         html.append("<section class='panel calendar-panel'><div class='calendar-title'>"); // カレンダー枠と見出しを始めます
-        html.append("<a class='month-link' href='/?sort=").append(sort).append("&tag=").append(selectedTag).append("&month=").append(month.minusMonths(1))
+        html.append("<a class='month-link' href='/?sort=").append(sort).append("&month=").append(month.minusMonths(1))
                 .append("'>←</a>"); // 前月へのリンクを追加します
         html.append("<h2>").append(month.getYear()).append("年 ").append(month.getMonthValue()).append("月の締切</h2>"); // 表示中の年月を追加します
-        html.append("<a class='month-link' href='/?sort=").append(sort).append("&tag=").append(selectedTag).append("&month=").append(month.plusMonths(1))
+        html.append("<a class='month-link' href='/?sort=").append(sort).append("&month=").append(month.plusMonths(1))
                 .append("'>→</a></div>"); // 翌月へのリンクを追加します
         html.append(
                 "<table><thead><tr><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th><th>日</th></tr></thead><tbody><tr>"); // 曜日の見出しを追加します
@@ -317,10 +258,8 @@ public class App { // Appという名前のプログラムを定義します
                     .append("</span>"); // 日付セルを開始します
             for (Todo todo : todos) { // 現在の日が締切のTodoを探します
                 if (todo.getDeadline().equals(day.toString())) { // 締切日が現在の日と一致するかを調べます
-                    html.append("<a class='calendar-task").append(todo.isDone() ? " done" : "")
-                            .append("' href='/?sort=").append(sort).append("&month=").append(month).append("&edit=")
-                            .append(todo.getId()).append("#todo-").append(todo.getId()).append("'>"); // 一覧の編集欄へ移るリンクを開始します
-                    html.append(escapeHtml(todo.getTitle())).append("</a>"); // 安全に変換したタイトルを追加してリンクを閉じます
+                    html.append("<div class='calendar-task").append(todo.isDone() ? " done" : "").append("'>"); // カレンダー内のTodo表示を開始します
+                    html.append(escapeHtml(todo.getTitle())).append("</div>"); // 安全に変換したタイトルを追加します
                 } // 締切日の確認を終えます
             } // 現在の日のTodoを探す処理を終えます
             html.append("</td>"); // 日付セルを閉じます
@@ -334,13 +273,10 @@ public class App { // Appという名前のプログラムを定義します
         return html.toString(); // 完成したカレンダーHTMLを返します
     } // カレンダー作成処理の終わりです
 
-    static String renderPage(String sort, YearMonth month, String selectedTag, int editId) { // Todo画面全体のHTMLを作ります
+    static String renderPage(String sort, YearMonth month) { // Todo画面全体のHTMLを作ります
         long completedCount = todos.stream().filter(Todo::isDone).count(); // 完了済みTodoの件数を数えます
         long activeCount = todos.size() - completedCount; // 現在取り組むTodoの件数を求めます
         List<Todo> displayedTodos = new ArrayList<>(todos); // 保存順を変えないよう表示用Listを作ります
-        if (!selectedTag.isBlank()) {
-            displayedTodos.removeIf(todo -> !todo.hasTag(selectedTag)); // 一覧だけを選択タグで絞り込みます
-        }
         if (sort.equals("name")) { // 名前順が選ばれているかを調べます
             displayedTodos.sort(
                     Comparator.comparing(Todo::getTitle, String.CASE_INSENSITIVE_ORDER).thenComparingInt(Todo::getId)); // タイトル、idの順に並べます
@@ -353,17 +289,14 @@ public class App { // Appという名前のプログラムを定義します
                 "<!doctype html><html lang='ja'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"); // 日本語とスマートフォン表示の設定を追加します
         html.append("<title>わたしのTodo</title><style>"); // ページタイトルとCSSを開始します
         html.append(
-                "*{box-sizing:border-box}body{margin:0;background:#fff8ef;color:#4b342b;font-family:'Yu Gothic',sans-serif}main{max-width:1100px;margin:auto;padding:32px 18px 48px}h1{margin:0;color:#a84f32}h2{margin:0;font-size:1.15rem}.lead{color:#8a6557;margin:6px 0 24px}.summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px}.count-card,.panel{background:#fffdf9;border:1px solid #efd8c5;border-radius:16px;box-shadow:0 8px 24px #a84f3212}.count-card{padding:18px}.count-card strong{display:block;font-size:2rem;color:#c65f3c}.workspace{display:grid;grid-template-columns:1fr;gap:18px}.panel{padding:20px}.list-header{display:flex;align-items:center;justify-content:space-between;gap:10px}.inline-form{margin:0}.add-form{display:grid;grid-template-columns:1fr auto auto;gap:10px;margin:16px 0}.add-form input,.sort-form select,.edit-form input,.edit-form textarea{border:1px solid #dcbba5;border-radius:10px;padding:11px;background:white;color:#4b342b;font:inherit}button,.action,.month-link{border:0;border-radius:10px;background:#d96f45;color:white;padding:10px 14px;text-decoration:none;cursor:pointer;font-weight:bold}.sort-form{display:flex;align-items:center;gap:8px;margin-bottom:12px}.todo-list{list-style:none;margin:0;padding:0}.todo-item{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-top:1px solid #f2dfd1;padding:14px 2px}.todo-item.done .todo-title{text-decoration:line-through;color:#9b877f}.todo-main{min-width:0;flex:1}.todo-title{font-weight:bold;overflow-wrap:anywhere}.meta{display:block;color:#a6654d;font-size:.85rem;margin-top:4px;overflow-wrap:anywhere}.memo{white-space:pre-wrap}.actions{display:flex;gap:6px;flex-shrink:0;align-items:flex-start}.action{font-size:.85rem;padding:7px 9px}.action.secondary{background:#bf9278}.action.delete{background:#8f5d50}.edit-box{margin-top:10px}.edit-box summary{cursor:pointer;color:#a84f32;font-size:.92rem;font-weight:bold}.edit-form{display:grid;gap:8px;margin-top:10px}.edit-form label{display:grid;gap:4px;font-size:.85rem}.edit-form textarea{min-height:72px;resize:vertical}.empty-message{padding:22px;text-align:center;color:#9b7565}.calendar-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.month-link{padding:7px 11px}table{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed}th{color:#a45c43;font-size:.8rem}td{vertical-align:top}.day{height:88px;background:#fff7ed;border-radius:9px;padding:6px}.day.today{outline:2px solid #e1845e}.day-number{font-size:.82rem;font-weight:bold}.calendar-task{margin-top:4px;padding:3px 5px;border-radius:5px;background:#f4b38f;color:#633526;font-size:.72rem;overflow:hidden;text-overflow:ellipsis}.calendar-task.done{text-decoration:line-through;background:#dcc3b4}.empty{background:#fbf0e5;border-radius:9px}@media(max-width:820px){.workspace{grid-template-columns:1fr}.add-form{grid-template-columns:1fr}.calendar-panel{overflow-x:auto}table{min-width:560px}.summary{grid-template-columns:1fr 1fr}}@media(max-width:480px){.summary{grid-template-columns:1fr}.todo-item{flex-direction:column}.actions{flex-wrap:wrap}} "); // 暖色系のレイアウトと画面幅に応じた見た目を指定します
-        html.append(".calendar-task{display:block;text-decoration:none}.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.tag{background:#f8e3d4;color:#8c4e38;border-radius:999px;padding:3px 8px;font-size:.76rem}.tag-options{border:1px solid #efd8c5;border-radius:10px;padding:9px}.tag-options legend{color:#a6654d;font-size:.85rem}.tag-options label{display:inline-flex;align-items:center;gap:4px;margin-right:12px}.tag-options input{padding:0}.filter-note{color:#8a6557;font-size:.8rem;margin:-5px 0 12px}"); // タグとカレンダーリンクを既存配色になじませます
+                "*{box-sizing:border-box}body{margin:0;background:#fff8ef;color:#4b342b;font-family:'Yu Gothic',sans-serif}main{max-width:1100px;margin:auto;padding:32px 18px 48px}h1{margin:0;color:#a84f32}h2{margin:0;font-size:1.15rem}.lead{color:#8a6557;margin:6px 0 24px}.summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px}.count-card,.panel{background:#fffdf9;border:1px solid #efd8c5;border-radius:16px;box-shadow:0 8px 24px #a84f3212}.count-card{padding:18px}.count-card strong{display:block;font-size:2rem;color:#c65f3c}.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,1.15fr);gap:18px}.panel{padding:20px}.list-header{display:flex;align-items:center;justify-content:space-between;gap:10px}.inline-form{margin:0}.add-form{display:grid;grid-template-columns:1fr auto auto;gap:10px;margin:16px 0}.add-form input,.sort-form select,.edit-form input,.edit-form textarea{border:1px solid #dcbba5;border-radius:10px;padding:11px;background:white;color:#4b342b;font:inherit}button,.action,.month-link{border:0;border-radius:10px;background:#d96f45;color:white;padding:10px 14px;text-decoration:none;cursor:pointer;font-weight:bold}.sort-form{display:flex;align-items:center;gap:8px;margin-bottom:12px}.todo-list{list-style:none;margin:0;padding:0}.todo-item{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-top:1px solid #f2dfd1;padding:14px 2px}.todo-item.done .todo-title{text-decoration:line-through;color:#9b877f}.todo-main{min-width:0;flex:1}.todo-title{font-weight:bold;overflow-wrap:anywhere}.meta{display:block;color:#a6654d;font-size:.85rem;margin-top:4px;overflow-wrap:anywhere}.memo{white-space:pre-wrap}.actions{display:flex;gap:6px;flex-shrink:0;align-items:flex-start}.action{font-size:.85rem;padding:7px 9px}.action.secondary{background:#bf9278}.action.delete{background:#8f5d50}.edit-box{margin-top:10px}.edit-box summary{cursor:pointer;color:#a84f32;font-size:.92rem;font-weight:bold}.edit-form{display:grid;gap:8px;margin-top:10px}.edit-form label{display:grid;gap:4px;font-size:.85rem}.edit-form textarea{min-height:72px;resize:vertical}.empty-message{padding:22px;text-align:center;color:#9b7565}.calendar-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.month-link{padding:7px 11px}table{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed}th{color:#a45c43;font-size:.8rem}td{vertical-align:top}.day{height:88px;background:#fff7ed;border-radius:9px;padding:6px}.day.today{outline:2px solid #e1845e}.day-number{font-size:.82rem;font-weight:bold}.calendar-task{margin-top:4px;padding:3px 5px;border-radius:5px;background:#f4b38f;color:#633526;font-size:.72rem;overflow:hidden;text-overflow:ellipsis}.calendar-task.done{text-decoration:line-through;background:#dcc3b4}.empty{background:#fbf0e5;border-radius:9px}@media(max-width:820px){.workspace{grid-template-columns:1fr}.add-form{grid-template-columns:1fr}.calendar-panel{overflow-x:auto}table{min-width:560px}.summary{grid-template-columns:1fr 1fr}}@media(max-width:480px){.summary{grid-template-columns:1fr}.todo-item{flex-direction:column}.actions{flex-wrap:wrap}} "); // 暖色系のレイアウトと画面幅に応じた見た目を指定します
         html.append(
                 "</style></head><body><main><header><h1>わたしのTodo</h1><p class='lead'>今日の予定と締切を、ひと目で確認できます。</p></header>"); // CSSを閉じて画面の見出しを追加します
         html.append("<section class='summary'><div class='count-card'><span>現在のタスク</span><strong>").append(activeCount)
                 .append("</strong></div>"); // 現在のタスク件数を表示します
         html.append("<div class='count-card'><span>完了したタスク</span><strong>").append(completedCount)
                 .append("</strong></div></section>"); // 完了件数を表示します
-        html.append("<div class='workspace'>"); // カレンダーとTodo一覧を縦に並べる枠を開始します
-        html.append(renderCalendar(month, sort, selectedTag)); // カレンダーはタグで絞らずTodo一覧より先に追加します
-        html.append("<section class='panel'><div class='list-header'><h2>Todo一覧</h2>"); // Todo一覧の枠と見出しを開始します
+        html.append("<div class='workspace'><section class='panel'><div class='list-header'><h2>Todo一覧</h2>"); // Todo一覧の枠と見出しを開始します
         if (completedCount > 0) { // 完了済みTodoがあるかを調べます
             html.append(
                     "<form class='inline-form' method='post' action='/delete-completed' onsubmit=\"return confirm('完了済みTodoをすべて削除しますか？')\"><button class='action delete' type='submit'>完了済みを一括削除</button></form>"); // 一括削除ボタンを表示します
@@ -377,38 +310,22 @@ public class App { // Appという名前のプログラムを定義します
                 .append(">更新順</option>"); // 更新順の選択肢を追加します
         html.append("<option value='name'").append(sort.equals("name") ? " selected" : "")
                 .append(">名前順</option></select>"); // 名前順の選択肢を追加します
-        html.append("<label for='tag'>タグ</label><select id='tag' name='tag'><option value=''>すべて</option>");
-        for (int i = 0; i < TAG_VALUES.length; i++) {
-            html.append("<option value='").append(TAG_VALUES[i]).append("'")
-                    .append(selectedTag.equals(TAG_VALUES[i]) ? " selected" : "").append(">")
-                    .append(TAG_LABELS[i]).append("</option>");
-        }
-        html.append("</select>");
         html.append("<input type='hidden' name='month' value='").append(month)
                 .append("'><button type='submit'>表示</button></form>"); // 表示中の月を保って並べ替えるボタンを追加します
-        html.append("<p class='filter-note'>タグの絞り込みはTodo一覧だけに適用され、カレンダーには全件表示されます。</p>");
         html.append("<ul class='todo-list'>"); // Todo一覧を開始します
-        if (displayedTodos.isEmpty()) { // 表示できるTodoが1件もないかを調べます
-            html.append("<li class='empty-message'>").append(selectedTag.isBlank() ? "Todoはまだありません。" : "このタグのTodoはありません。")
-                    .append("</li>"); // 空の一覧に案内を表示します
+        if (displayedTodos.isEmpty()) { // Todoが1件もないかを調べます
+            html.append("<li class='empty-message'>Todoはまだありません。</li>"); // 空の一覧に案内を表示します
         } // 空の一覧かの確認を終えます
         for (Todo todo : displayedTodos) { // 表示順にTodoを取り出します
-            html.append("<li id='todo-").append(todo.getId()).append("' class='todo-item").append(todo.isDone() ? " done" : "")
+            html.append("<li class='todo-item").append(todo.isDone() ? " done" : "")
                     .append("'><div class='todo-main'><span class='todo-title'>"); // Todo項目とタイトルを開始します
             html.append(escapeHtml(todo.getTitle())).append("</span>"); // 日本語タイトルを安全に表示します
             html.append("<span class='meta'>期限: ")
                     .append(todo.getDeadline().isBlank() ? "なし" : escapeHtml(todo.getDeadline())).append("</span>"); // 締切日を常に表示します
             html.append("<span class='meta memo'>メモ: ")
                     .append(todo.getMemo().isBlank() ? "なし" : escapeHtml(todo.getMemo())).append("</span>"); // メモを常に表示します
-            html.append("<div class='tags'>");
-            for (int i = 0; i < TAG_VALUES.length; i++) {
-                if (todo.hasTag(TAG_VALUES[i])) {
-                    html.append("<span class='tag'>").append(TAG_LABELS[i]).append("</span>");
-                }
-            }
-            html.append("</div>");
             html.append(
-                    "<details class='edit-box'" + (todo.getId() == editId ? " open" : "") + "><summary>編集</summary><form class='edit-form' method='post' action='/edit' accept-charset='UTF-8'>"); // 編集フォームを開始します
+                    "<details class='edit-box'><summary>編集</summary><form class='edit-form' method='post' action='/edit' accept-charset='UTF-8'>"); // 編集フォームを開始します
             html.append("<input type='hidden' name='id' value='").append(todo.getId()).append("'>"); // 編集対象のidを追加します
             html.append("<label>タイトル<input name='title' required value='").append(escapeHtml(todo.getTitle()))
                     .append("'></label>"); // 現在のタイトルを入力欄へ表示します
@@ -416,13 +333,6 @@ public class App { // Appという名前のプログラムを定義します
                     .append("'></label>"); // 現在の期限を入力欄へ表示します
             html.append("<label>メモ<textarea name='memo'>").append(escapeHtml(todo.getMemo()))
                     .append("</textarea></label>"); // 現在のメモを入力欄へ表示します
-            html.append("<fieldset class='tag-options'><legend>タグ（複数選択可）</legend>");
-            for (int i = 0; i < TAG_VALUES.length; i++) {
-                html.append("<label><input type='checkbox' name='tag_").append(TAG_VALUES[i]).append("' value='")
-                        .append(TAG_VALUES[i]).append("'").append(todo.hasTag(TAG_VALUES[i]) ? " checked" : "")
-                        .append(">").append(TAG_LABELS[i]).append("</label>");
-            }
-            html.append("</fieldset>");
             html.append("<button type='submit'>変更を保存</button></form></details>"); // 編集フォームを閉じます
             html.append("</div><div class='actions'>"); // タイトル部分を閉じて操作部分を始めます
             if (todo.isDone()) { // 完了済みかを調べます
@@ -434,6 +344,7 @@ public class App { // Appという名前のプログラムを定義します
                     .append("'>削除</a></div></li>"); // 削除リンクを追加してTodo項目を閉じます
         } // 全Todoの表示を終えます
         html.append("</ul></section>"); // Todo一覧と枠を閉じます
+        html.append(renderCalendar(month, sort)); // 別枠の締切カレンダーを追加します
         html.append("</div></main><script>"); // 画面本体を閉じてスクロール位置を保つ処理を開始します
         html.append("const scrollKey='todo-scroll-position';"); // スクロール位置を保存する名前を用意します
         html.append("const saveScroll=()=>sessionStorage.setItem(scrollKey,String(window.scrollY));"); // 現在の縦位置をブラウザー内へ保存する処理を用意します
@@ -489,7 +400,6 @@ public class App { // Appという名前のプログラムを定義します
                 String title = getParameter(formData, "title"); // 編集後のタイトルを取り出します
                 String deadline = validDeadlineOrEmpty(getParameter(formData, "deadline")); // 編集後の期限を検証します
                 String memo = getParameter(formData, "memo"); // 編集後のメモを取り出します
-                String tags = selectedTags(formData); // 編集画面で選択された複数タグを取り出します
                 Integer targetId = null; // 編集対象のidを入れる箱を用意します
                 try { // idを数字へ変換できるか確認します
                     targetId = Integer.parseInt(getParameter(formData, "id")); // idを取り出して数字に変換します
@@ -499,7 +409,7 @@ public class App { // Appという名前のプログラムを定義します
                 if (targetId != null && !title.isBlank()) { // 対象と必須タイトルが正しいかを調べます
                     for (Todo item : todos) { // Todoを1件ずつ調べます
                         if (item.getId() == targetId) { // 編集対象のTodoかを調べます
-                            item.edit(title, deadline, memo, tags); // タイトル、期限、メモ、タグを変更します
+                            item.edit(title, deadline, memo); // タイトル、期限、メモを変更します
                             save(); // 編集結果をすぐに保存します
                             break; // 対象1件の編集を終えます
                         } // idの確認を終えます
@@ -568,23 +478,13 @@ public class App { // Appという名前のプログラムを定義します
                 if (!sort.equals("name")) { // 名前順以外が指定されているかを調べます
                     sort = "updated"; // 初期表示と不正な指定は更新順にします
                 } // 並べ替え方法の確認を終えます
-                String selectedTag = getParameter(query, "tag"); // Todo一覧の絞り込みタグを取り出します
-                if (!isValidTag(selectedTag)) {
-                    selectedTag = ""; // 未指定や不正なタグは全件表示にします
-                }
-                int editId;
-                try {
-                    editId = Integer.parseInt(getParameter(query, "edit")); // カレンダーで選ばれた編集対象を取り出します
-                } catch (NumberFormatException e) {
-                    editId = -1;
-                }
                 YearMonth month; // 表示する年月を入れる箱を用意します
                 try { // URLの年月を解析できるかを確認します
                     month = YearMonth.parse(getParameter(query, "month")); // 指定された年月を読み取ります
                 } catch (RuntimeException e) { // 年月が未指定または不正な場合を受け止めます
                     month = YearMonth.now(); // デフォルトで今月を表示します
                 } // 表示月の決定を終えます
-                message = renderPage(sort, month, selectedTag, editId); // 件数、一覧、カレンダー、タグ絞り込みを含む画面を作ります
+                message = renderPage(sort, month); // 件数、一覧、カレンダーを含む画面を作ります
             } else {
                 message = "ページが見つかりません";
             }
