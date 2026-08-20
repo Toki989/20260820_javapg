@@ -289,16 +289,7 @@ public class App { // Appという名前のプログラムを定義します
         } // 全Todoの表示を終えます
         html.append("</ul></section>"); // Todo一覧と枠を閉じます
         html.append(renderCalendar(month, sort)); // 別枠の締切カレンダーを追加します
-        html.append("</div></main><script>"); // 画面本体を閉じてスクロール位置を保つ処理を開始します
-        html.append("const scrollKey='todo-scroll-position';"); // スクロール位置を保存する名前を用意します
-        html.append("const saveScroll=()=>sessionStorage.setItem(scrollKey,String(window.scrollY));"); // 現在の縦位置をブラウザー内へ保存する処理を用意します
-        html.append("document.querySelectorAll('form').forEach(form=>form.addEventListener('submit',saveScroll));"); // 追加と並べ替えの実行前に位置を保存します
-        html.append(
-                "document.querySelectorAll('a.action,a.month-link').forEach(link=>link.addEventListener('click',saveScroll));"); // 完了、取り消し、削除、月移動の実行前に位置を保存します
-        html.append("const savedScroll=sessionStorage.getItem(scrollKey);"); // 前の画面で保存した位置を取り出します
-        html.append(
-                "if(savedScroll!==null){sessionStorage.removeItem(scrollKey);requestAnimationFrame(()=>window.scrollTo(0,Number(savedScroll)));}"); // 描画後に位置を一度だけ復元して保存値を消します
-        html.append("</script></body></html>"); // スクロール位置を保つ処理と画面全体を閉じます
+        html.append("</div></main></body></html>"); // 画面全体を閉じます
         return html.toString(); // 完成したHTMLを返します
     } // Todo画面の作成処理を終えます
 
